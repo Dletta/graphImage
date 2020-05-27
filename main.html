@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+  </head>
+  <body>
+    <video id="video" @controls>Please give permission for video.</video>
+    <canvas id="canvas" hidden="true">
+    </canvas>
+    <canvas id="output">
+    </canvas>
+    <img id="hidden"></img>
+    <p id="errorMsg"></p>
+
+  </body>
+  <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/gun/nts.js"></script> -->
+  <script src="https://cdn.jsdelivr.net/npm/gun/lib/promise.js"></script>
+  <script type="text/javascript">
+
+  var source = document.querySelector('#canvas')
+  var sourcectx = source.getContext('2d')
+  var out = document.querySelector('#output')
+  var outctx = out.getContext('2d')
+
+
+  var img = document.querySelector('#hidden');
+
+  var mystream;
+
+  Gun.on('create', function(root){
+			this.to.next(root);
+			var opt = root.opt;
+			if(root.once){ return }
+		  var env;
+			if(typeof window !== "undefined"){ env = window }
+			if(typeof global !== "undefined"){ env = global }
+			env = env || {};
+
+			var websocket = opt.WebSocket || env.WebSocket || env.webkitWebSocket || env.mozWebSocket;
+			if(!websocket){ return }
+			opt.WebSocket = websocket;
+
+			var mesh = opt.mesh = opt.mesh || Gun.Mesh(root);
+
+			var wire = mesh.wire || opt.wire;
+			mesh.wire = opt.wire = open;
+			function open(peer){ try{
+				if(!peer || !peer.url){ return wire && wire(peer) }
+				var url = peer.url.replace(/^http/, 'ws');
+				var wire = peer.wire = new opt.WebSocket(url);
+				wire.onclose = function(){
+					opt.mesh.bye(peer);
+					reconnect(peer);
+				};
+				wire.onerror = function(error){
+					reconnect(peer);
+				};
+				wire.onopen = function(){
+					opt.mesh.hi(peer);
+				}
+				wire.onmessage = function(msg){
+					if(!msg){ return }
+          if(typeof msg.data == 'object') {
+            //console.log("caught data", msg.data);
+            var canvas = document.getElementById("output");
+            canvas.setAttribute('width', width);
+            canvas.setAttribute('height', height);
+            var ctx = canvas.getContext('2d');
+            //ctx.drawImage(msg.data, 0, 0);
+            var img = new Image();
+
+            img.onload = function() {
+              ctx.drawImage(img, 0, 0)
+            }
+            img.src = URL.createObjectURL(msg.data);
+            ctx.drawImage(img, 0, 0);
+            return;
+          }
+					opt.mesh.hear(msg.data || msg, peer);
+				};
+				return wire;
+			}catch(e){}}
+
+			setTimeout(function(){ root.on('out', {dam:'hi'}) },1); // it can take a while to open a socket, so maybe no longer lazy load for perf reasons?
+
+			var wait = 2 * 1000;
+			function reconnect(peer){
+				clearTimeout(peer.defer);
+				if(doc && peer.retry <= 0){ return } peer.retry = (peer.retry || opt.retry || 60) - 1;
+				peer.defer = setTimeout(function to(){
+					if(doc && doc.hidden){ return setTimeout(to,wait) }
+					open(peer);
+				}, wait);
+			}
+			var doc = 'undefined' !== typeof document && document;
+		});
+
+  var peer = "http://localhost:8080/gun";
+  var peers = [peer];
+
+  var gun = Gun({radisk:false, WebSocket:false, peers:peers});
+
+  var startTime = Date.now();
+  // Put variables in global scope to make them available to the browser console.
+  var video = document.querySelector('#video');
+  var width = 400, height;
+  var streaming = false;
+  //var worker = new Worker('faceDetector.js');
+  var constraints = window.constraints = {
+    audio: true,
+    video: true
+  };
+
+  var errorElement = document.querySelector('#errorMsg');
+
+
+
+  navigator.mediaDevices.getUserMedia(constraints)
+  .then(function(stream) {
+    window.stream = stream; // make variable available to browser console
+    video.srcObject = stream;
+    video.play();
+  })
+  .catch(function(error) {
+    if (error.name === 'ConstraintNotSatisfiedError') {
+      errorMsg('The resolution ' + constraints.video.width.exact + 'x' +
+          constraints.video.height.exact + ' px is not supported by your device.');
+    } else if (error.name === 'PermissionDeniedError') {
+      errorMsg('Permissions have not been granted to use your camera and ' +
+        'microphone, you need to allow the page access to your devices in ' +
+        'order for the demo to work.');
+    }
+    errorMsg('getUserMedia error: ' + error.name, error);
+  });
+
+  function errorMsg(msg, error) {
+    errorElement.innerHTML += '<p>' + msg + '</p>';
+    if (typeof error !== 'undefined') {
+      console.error(error);
+    }
+  }
+
+
+  video.addEventListener('canplay', function(ev){
+     if (!streaming) {
+       width = 400;
+       height = video.videoHeight / (video.videoWidth/width);
+
+       video.setAttribute('width', width);
+       video.setAttribute('height', height);
+       source.setAttribute('width', width);
+       source.setAttribute('height', height);
+       streaming = true;
+
+       setInterval(window.requestAnimationFrame.bind(null, takepicture), 800);
+     }
+   }, false);
+
+  function takepicture() {
+
+        source.width = width;
+        source.height = height;
+        sourcectx.drawImage(video, 0, 0, width, height);
+
+        source.toBlob(function (blob) {
+          gun._.opt.peers[peer].wire.send(blob);
+        }, "image/bmp")
+
+    }
+
+  </script>
+</html>
