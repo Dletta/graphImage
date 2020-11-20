@@ -24,8 +24,13 @@ function context (context) {
 			wire.peer = function(){ return peer };
 			context.on('hi', peer);
 
-			wire.on('message', function(msg){
+			wire.on('message', async function(msg){
 				console.log("MESSAGE", msg);
+        console.log("type", msg.length);
+        if(Buffer.isBuffer(msg)){
+          console.log(msg.includes("metadata"));
+          console.log(msg.toString('utf8', 0, 50));
+        }
         var peerList = Object.keys(context.opt.peers);
         for(let i=0;i<peerList.length;i++) {
       		gun._.opt.peers[peerList[i]].wire.send(msg);

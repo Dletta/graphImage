@@ -79,6 +79,7 @@
           opt.mesh.hi(peer);
         }
         wire.onmessage = function(msg){
+
           if(!msg){ return }
           if(typeof msg.data == 'object') {
             //console.log("caught data", msg.data);
@@ -133,6 +134,16 @@
     // as a test, don't forward to to.next for now
     if(msg.data) {
       let blob = msg.data;
+      if(typeof Buffer !== "undefined"){
+        console.log(blob.includes("metadata"));
+        console.log(blob.toString('utf8', 0, 35));
+      } else if (typeof FileReader !== "undefined") {
+        let read = new FileReader();
+        var meta = blob.slice(0, 25);
+        meta = await meta.text();
+        console.log(meta)
+
+      }
       sourceBuffer.addEventListener('updateend', function (_) {
         // console.log(mediaSource.readyState); // ended
         if (mediaSource.readyState === "open") {
@@ -169,7 +180,7 @@
 
     }
     window.mediaRecorder.start(33.3);
-    //setTimeout(window.mediaRecorder.stop(), 350);
+    setTimeout(window.mediaRecorder.stop(), 350);
 
     vid.src = URL.createObjectURL(mediaSource);
     vid.play();
@@ -232,12 +243,16 @@
         var imageData = context.getImageData(0,0,width,height);
         var dataP = canvas.toBlob((blob)=>{
           try {
-            gun._.opt.peers["https://e2eec.herokuapp.com/gun"].wire.send(blob)
+            //gun._.opt.peers["https://e2eec.herokuapp.com/gun"].wire.send(blob)
+            //gun._.opt.peers[peer].wire.send({metadata:'test', data:blob});
+            gun._.opt.peers[peer].wire.send(blob);
+            var test = new Blob(["{metadata:'test'}", blob]);
+            gun._.opt.peers[peer].wire.send(test);
           } catch (e) {
             console.log(e);
           }
 
-        });
+        }, "@/test");
         //var time = Date.now() - startTime;
         //var data = imageData.data;
         //var obj = {data:data, width: width};
